@@ -17,3 +17,6 @@ Analytical Questions:
 2. Do movies with higher audience engagement (vote_count) tend to have higher financial performance (revenue), and does this relationship vary by genre?
 3. What are the most popular genres in each country or region?
 4. How has the film industry changed over time? (more expensive, more profitable, lower/higher ratings)
+
+Primary Keys: ids (movie_id, genre_id, company_id, country_code, language_code)
+Foreign Keys:
