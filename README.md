@@ -5,6 +5,13 @@ Source 1: https://www.kaggle.com/datasets/asaniczka/tmdb-movies-dataset-2023-930
 
 This dataset is usable for this project as it has over the required 5,000 entries, 4+ tables or logical entities, numerical/categorical/time entries/fields, as well as relationships between entries. 
 
+Logical Entities: Exists independently of a single movie
+- Movie (the main entity)
+- Genre (categorical classification )
+- Production Company
+- Production Country 
+- Language
+
 Analytical Questions:
 1. Does a higher production budget actually lead to better outcomes? (either revenue or popularity)
 2. Do movies with higher audience engagement (vote_count) tend to have higher financial performance (revenue), and does this relationship vary by genre?
