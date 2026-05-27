@@ -5,7 +5,7 @@ Source 1: https://www.kaggle.com/datasets/asaniczka/tmdb-movies-dataset-2023-930
 
 This dataset is usable for this project as it has over the required 5,000 entries, 4+ tables or logical entities, numerical/categorical/time entries/fields, as well as relationships between entries. 
 
-Due to challenges with utilizing 1 million datapoints, we opted for a script to randomly sample 25 thousand data points from the original dataset. The script is included, named "movie_sampling_script.py".
+After preliminary cleaning, we identified that the 'revenue' column of the dataset contained 98% null values. We opted to filter only entries that have a valid revenue value, cutting our dataset size down to approximately 24 thousand entries. The script for preliminary analysis and cleaning can be found as 'cleaning_script.py'
 
 Logical Entities: Exists independently of a single movie
 - Movie (the main entity)
