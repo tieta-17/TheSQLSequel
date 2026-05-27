@@ -1,0 +1,50 @@
+#MongoDB database design for our TMDB Movies Project
+The database is named tmdb_movies and has one collection called movies. 
+Each document represents one movie and contains all related data embedded directly.
+
+## Fields in each document
+- movie_id: TMDB unique movie identifier
+- title: English display title
+- original_title: Title in original language
+- status: Production stage (e.g. Released)
+- release_date: Theatrical release date (YYYY-MM-DD)
+- runtime: Film length in minutes
+- adult: Adult content flag (1=yes, 0=no)
+- original_language: ISO 639-1 language code
+- vote_average: Mean user rating (0-10)
+- vote_count: Number of user votes
+- popularity: TMDB internal popularity score
+- budget: Production budget in USD (null if unknown)
+- revenue: Box office gross in USD (null if unknown)
+- overview: Plot synopsis
+- tagline: Marketing tagline
+- genres: Genre(s) of the movie
+- production_companies: Company/companies that produced the movie
+- production_countries: Country/countries of production
+- spoken_languages: Language(s) spoken in the movie
+- keywords: Thematic keywords
+- imdb_id: IMDb identifier
+
+## Embed vs. Reference Decision
+All fields are embedded directly into each movie document.
+Since all data is always queried together with the movie, embedding is simpler and faster.
+In a larger system we might reference production companies separately since they
+appear across many movies, but embedding is sufficient for this project.
+
+## Indexes
+- release_date: for time-based analysis
+- genres: for genre popularity queries
+- vote_average: for rating queries
+- budget: for financial analysis
+- revenue: for financial analysis
+
+## Queries
+Query 1: Top 5 Most Voted Movies per Genre
+Filter movies with at least 1,000 votes, group by genre, return the most
+voted movie per genre sorted by vote count descending, limit to top 5.
+Connects to: audience engagement vs financial performance question.
+
+Query 2: Average Revenue by Genre (budget over $1M)
+Filter movies with budget over $1 million, group by genre, calculate average
+revenue and budget per genre, sort by average revenue descending, limit to top 10.
+Connects to: does higher budget lead to better outcomes question.
