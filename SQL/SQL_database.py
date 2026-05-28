@@ -457,6 +457,53 @@ def get_film_industry_trends(engine):
 
     return pd.read_sql(query, con=engine)
 
+# -----------------------------
+# QUERY 5: Language Diversity & Global Reach
+# -----------------------------
+
+def get_language_diversity_global_reach(engine):
+
+    query = """
+        SELECT
+            language_count,
+            AVG(pm.popularity)   AS avg_popularity,
+            AVG(pm.vote_count)   AS avg_vote_count,
+            AVG(fm.revenue)      AS avg_revenue,
+            COUNT(*)             AS movie_count
+
+        FROM (
+            SELECT
+                gi.movie_id,
+                -- Count comma-separated languages by counting commas + 1
+                (
+                    LENGTH(pc.spoken_languages)
+                    - LENGTH(REPLACE(pc.spoken_languages, ',', ''))
+                    + 1
+                ) AS language_count
+
+            FROM production_classification pc
+            JOIN general_information gi
+                ON pc.movie_id = gi.movie_id
+
+            WHERE pc.spoken_languages IS NOT NULL
+            AND pc.spoken_languages != ''
+
+        ) AS lang_counts
+
+        JOIN popularity_metrics pm
+            ON lang_counts.movie_id = pm.movie_id
+
+        JOIN financial_metrics fm
+            ON lang_counts.movie_id = fm.movie_id
+
+        WHERE pm.vote_count > 50
+        AND language_count > 0
+
+        GROUP BY language_count
+        ORDER BY language_count ASC; 
+    """
+
+    return pd.read_sql(query, con=engine)
 
 # =========================================================
 # MAIN
