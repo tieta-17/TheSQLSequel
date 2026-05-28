@@ -291,3 +291,68 @@ def get_film_industry_trends(collection):
     results = list(collection.aggregate(pipeline))
 
     return pd.DataFrame(results)
+
+# -----------------------------
+# QUERY 5
+# Language Diversity & Global Reach
+# -----------------------------
+
+def get_language_diversity_global_reach(collection):
+
+    pipeline = [
+
+        {
+            "$match": {
+                "spoken_languages": {"$ne": None},
+                "vote_count": {"$gt": 50}
+            }
+        },
+
+        {
+            "$addFields": {
+                "language_array": {
+                    "$split": ["$spoken_languages", ", "]
+                }
+            }
+        },
+
+        {
+            "$addFields": {
+                "language_count": {
+                    "$size": "$language_array"
+                }
+            }
+        },
+
+        {
+            "$group": {
+                "_id": "$language_count",
+
+                "avg_popularity": {
+                    "$avg": "$popularity"
+                },
+
+                "avg_vote_count": {
+                    "$avg": "$vote_count"
+                },
+
+                "avg_revenue": {
+                    "$avg": "$revenue"
+                },
+
+                "movie_count": {
+                    "$sum": 1
+                }
+            }
+        },
+
+        {
+            "$sort": {
+                "_id": 1
+            }
+        }
+    ]
+
+    results = list(collection.aggregate(pipeline))
+
+    return pd.DataFrame(results)
