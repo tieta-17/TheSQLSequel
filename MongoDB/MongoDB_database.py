@@ -195,74 +195,80 @@ def save_film_industry_trends(collection, output_collection_name="query4_yearly_
     collection.aggregate(pipeline)
     print(f"-> Re-saved Query 4 safely with clean year IDs to: '{output_collection_name}'")
 
-<<<<<<< HEAD
-    return pd.DataFrame(results)
-
 # -----------------------------
-# QUERY 5
-# Language Diversity & Global Reach
+# QUERY 5: Language Diversity & Global Reach
 # -----------------------------
-
-def get_language_diversity_global_reach(collection):
-
+def save_language_diversity_global_reach(collection, output_collection_name="query5_language_diversity"):
     pipeline = [
-
+        # 1. Match movies with non-null language strings and valid vote counts
         {
             "$match": {
-                "spoken_languages": {"$ne": None},
+                "spoken_languages": {"$ne": None, "$not": {"$type": 10}}, # Filter out BSON null/undefined
                 "vote_count": {"$gt": 50}
             }
         },
-
+        # 2. CRITICAL FIX: Convert value to string to handle accidental double/float types safely
+        {
+            "$addFields": {
+                "safe_language_string": {
+                    "$cond": [
+                        {"$eq": ["$spoken_languages", ""]}, 
+                        "Unknown", 
+                        {"$toString": "$spoken_languages"} # Ensures numbers/NaN are turned into strings
+                    ]
+                }
+            }
+        },
+        # 3. Safe split over our newly sanitized string field
         {
             "$addFields": {
                 "language_array": {
-                    "$split": ["$spoken_languages", ", "]
+                    "$split": ["$safe_language_string", ", "]
                 }
             }
         },
-
+        # 4. Extract item size with array validation safety bounds
         {
             "$addFields": {
                 "language_count": {
-                    "$size": "$language_array"
+                    "$cond": {
+                        "if": {"$isArray": "$language_array"},
+                        "then": {"$size": "$language_array"},
+                        "else": 1
+                    }
                 }
             }
         },
-
+        # 5. Filter out any odd results where language count maps strangely 
+        {
+            "$match": {
+                "language_count": {"$gt": 0}
+            }
+        },
+        # 6. Group metrics by language count tiers
         {
             "$group": {
-                "_id": "$language_count",
-
-                "avg_popularity": {
-                    "$avg": "$popularity"
-                },
-
-                "avg_vote_count": {
-                    "$avg": "$vote_count"
-                },
-
-                "avg_revenue": {
-                    "$avg": "$revenue"
-                },
-
-                "movie_count": {
-                    "$sum": 1
-                }
+                "_id": "$language_count", 
+                "avg_popularity": {"$avg": "$popularity"},
+                "avg_vote_count": {"$avg": "$vote_count"},
+                "avg_revenue": {"$avg": "$revenue"},
+                "movie_count": {"$sum": 1}
             }
         },
-
+        # 7. Sort by counts sequentially
         {
             "$sort": {
                 "_id": 1
             }
+        },
+        # 8. Materialize results safely into a permanent collection
+        {
+            "$out": output_collection_name
         }
     ]
 
-    results = list(collection.aggregate(pipeline))
-
-    return pd.DataFrame(results)
-=======
+    collection.aggregate(pipeline)
+    print(f"-> Saved Query 5 safely with clean language count IDs to: '{output_collection_name}'")
 
 # -----------------------------
 # MAIN RUNNER
@@ -281,7 +287,7 @@ if __name__ == "__main__":
     save_engagement_vs_revenue_by_genre(movies_collection)
     save_popular_genres_by_country(movies_collection)
     save_film_industry_trends(movies_collection)
+    save_language_diversity_global_reach(movies_collection)
 
     print("\nAll queries saved successfully. You can now view them inside your MongoDB viewer (Compass/Shell)!")
     client.close()
->>>>>>> an-t-branch
