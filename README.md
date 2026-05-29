@@ -2,6 +2,7 @@ Project 2: Databases and Dashboards
   TheSQLSequel
 
 Source: https://www.kaggle.com/datasets/asaniczka/tmdb-movies-dataset-2023-930k-movies/data?select=TMDB_movie_dataset_v11.csv 
+Medium Article: https://medium.com/@awesterlund/building-two-databases-on-the-same-dataset-mysql-vs-mongodb-on-24-000-movies-649fc0d0920e
 
 Ensure you have python installed to run the repo
 
