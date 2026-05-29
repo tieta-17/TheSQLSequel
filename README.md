@@ -5,7 +5,7 @@ Source: https://www.kaggle.com/datasets/asaniczka/tmdb-movies-dataset-2023-930k-
 
 Ensure you have python installed to run the repo
 
-Necessary packages install:
+Necessary packages to install:
 `pip install pandas plotly pymongo streamlit pymysql sqlalchemy`
 
 This dataset is usable for this project as it has over the required 5,000 entries, 4+ tables or logical entities, numerical/categorical/time entries/fields, as well as relationships between entries. 
