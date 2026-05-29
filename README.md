@@ -29,3 +29,8 @@ Analytical Questions:
 
 Primary Keys: ids (movie_id, genre_id, company_id, country_code, language_code)
 
+To run streamlit app, after installing streamlit via
+`pip install streamlit`
+call 
+`streamlit run streamlit_app.py`
+in the terminal.
