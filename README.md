@@ -3,9 +3,12 @@ Project 2: Databases and Dashboards
 
 Source: https://www.kaggle.com/datasets/asaniczka/tmdb-movies-dataset-2023-930k-movies/data?select=TMDB_movie_dataset_v11.csv 
 
+Necessary packages to run the repo:
+pip install pandas plotly pymongo streamlit pymysql sqlalchemy
+
 This dataset is usable for this project as it has over the required 5,000 entries, 4+ tables or logical entities, numerical/categorical/time entries/fields, as well as relationships between entries. 
 
-After preliminary cleaning, we identified that the 'revenue' column of the dataset contained 98% null values. We opted to filter only entries that have a valid revenue value, cutting our dataset size down to approximately 24 thousand entries. The script for preliminary analysis and cleaning can be found as 'cleaning_script.py'
+After preliminary cleaning, we identified that the 'revenue' column of the dataset contained 98% null values. We opted to filter only entries that have a valid revenue value, cutting our dataset size down to approximately 24 thousand entries. The scripts for data preprocessing and cleaning can be found under /data_cleaning
 
 Logical Entities: Exists independently of a single movie
 - Movie (the main entity)
