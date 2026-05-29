@@ -1,4 +1,5 @@
 import ast
+import time
 import pandas as pd
 from pymongo import MongoClient
 
@@ -77,7 +78,6 @@ def save_budget_vs_success(collection, output_collection_name="query1_budget_suc
             }
         },
         {"$sort": {"_id": 1}},
-        # Automatically saves or overwrites the target collection with the results
         {"$out": output_collection_name}
     ]
 
@@ -108,7 +108,6 @@ def save_engagement_vs_revenue_by_genre(collection, output_collection_name="quer
             }
         },
         {"$sort": {"avg_revenue": -1}},
-        # Automatically saves or overwrites the target collection with the results
         {"$out": output_collection_name}
     ]
 
@@ -141,7 +140,6 @@ def save_popular_genres_by_country(collection, output_collection_name="query3_co
             }
         },
         {"$sort": {"avg_popularity": -1}},
-        # Note: We can flatten multi-key IDs later, but $out preserves the robust BSON structure natively
         {"$out": output_collection_name}
     ]
 
@@ -154,7 +152,6 @@ def save_popular_genres_by_country(collection, output_collection_name="query3_co
 # -----------------------------
 def save_film_industry_trends(collection, output_collection_name="query4_yearly_trends"):
     pipeline = [
-        # 1. CRITICAL: Filter out rows where release_date is completely null, empty, or wrong
         {
             "$match": {
                 "release_date": {"$ne": None, "$regex": r"^\d{4}-\d{2}-\d{2}"}
@@ -172,7 +169,6 @@ def save_film_industry_trends(collection, output_collection_name="query4_yearly_
                 }
             }
         },
-        # 2. Make sure we filter out any years that failed to parse
         {
             "$match": {
                 "year": {"$ne": None, "$gt": 1800}
@@ -180,7 +176,7 @@ def save_film_industry_trends(collection, output_collection_name="query4_yearly_
         },
         {
             "$group": {
-                "_id": "$year",  # This will now be a clean integer year (e.g., 2010, 2014)
+                "_id": "$year",
                 "avg_budget": {"$avg": "$budget"},
                 "avg_revenue": {"$avg": "$revenue"},
                 "avg_rating": {"$avg": "$vote_average"},
@@ -195,31 +191,29 @@ def save_film_industry_trends(collection, output_collection_name="query4_yearly_
     collection.aggregate(pipeline)
     print(f"-> Re-saved Query 4 safely with clean year IDs to: '{output_collection_name}'")
 
+
 # -----------------------------
 # QUERY 5: Language Diversity & Global Reach
 # -----------------------------
 def save_language_diversity_global_reach(collection, output_collection_name="query5_language_diversity"):
     pipeline = [
-        # 1. Match movies with non-null language strings and valid vote counts
         {
             "$match": {
-                "spoken_languages": {"$ne": None, "$not": {"$type": 10}}, # Filter out BSON null/undefined
+                "spoken_languages": {"$ne": None, "$not": {"$type": 10}},
                 "vote_count": {"$gt": 50}
             }
         },
-        # 2. CRITICAL FIX: Convert value to string to handle accidental double/float types safely
         {
             "$addFields": {
                 "safe_language_string": {
                     "$cond": [
-                        {"$eq": ["$spoken_languages", ""]}, 
-                        "Unknown", 
-                        {"$toString": "$spoken_languages"} # Ensures numbers/NaN are turned into strings
+                        {"$eq": ["$spoken_languages", ""]},
+                        "Unknown",
+                        {"$toString": "$spoken_languages"}
                     ]
                 }
             }
         },
-        # 3. Safe split over our newly sanitized string field
         {
             "$addFields": {
                 "language_array": {
@@ -227,7 +221,6 @@ def save_language_diversity_global_reach(collection, output_collection_name="que
                 }
             }
         },
-        # 4. Extract item size with array validation safety bounds
         {
             "$addFields": {
                 "language_count": {
@@ -239,29 +232,25 @@ def save_language_diversity_global_reach(collection, output_collection_name="que
                 }
             }
         },
-        # 5. Filter out any odd results where language count maps strangely 
         {
             "$match": {
                 "language_count": {"$gt": 0}
             }
         },
-        # 6. Group metrics by language count tiers
         {
             "$group": {
-                "_id": "$language_count", 
+                "_id": "$language_count",
                 "avg_popularity": {"$avg": "$popularity"},
                 "avg_vote_count": {"$avg": "$vote_count"},
                 "avg_revenue": {"$avg": "$revenue"},
                 "movie_count": {"$sum": 1}
             }
         },
-        # 7. Sort by counts sequentially
         {
             "$sort": {
                 "_id": 1
             }
         },
-        # 8. Materialize results safely into a permanent collection
         {
             "$out": output_collection_name
         }
@@ -270,10 +259,180 @@ def save_language_diversity_global_reach(collection, output_collection_name="que
     collection.aggregate(pipeline)
     print(f"-> Saved Query 5 safely with clean language count IDs to: '{output_collection_name}'")
 
+
+# =========================================================
+# EXPLAIN OUTPUT
+# MongoDB .explain() for Budget vs Success query
+# =========================================================
+
+def explain_budget_vs_success(collection):
+
+    pipeline = [
+        {"$match": {"budget": {"$gt": 0}, "revenue": {"$gt": 0}}},
+        {
+            "$bucket": {
+                "groupBy": "$budget",
+                "boundaries": [0, 1000000, 10000000, 50000000, 100000000, 500000000],
+                "default": "500M+",
+                "output": {
+                    "avg_revenue": {"$avg": "$revenue"},
+                    "avg_rating": {"$avg": "$vote_average"},
+                    "avg_votes": {"$avg": "$vote_count"},
+                    "movie_count": {"$sum": 1},
+                },
+            }
+        },
+        {"$sort": {"_id": 1}},
+    ]
+
+    explanation = collection.aggregate(pipeline, explain=True)
+
+    print("\n--- EXPLAIN: Budget vs Success ---")
+    print(explanation)
+    return explanation
+
+
+# =========================================================
+# BEFORE & AFTER INDEX COMPARISON
+# =========================================================
+
+def runtime_before_after_index(collection):
+
+    pipeline = [
+        {"$match": {"budget": {"$gt": 0}, "revenue": {"$gt": 0}}},
+        {
+            "$bucket": {
+                "groupBy": "$budget",
+                "boundaries": [0, 1000000, 10000000, 50000000, 100000000, 500000000],
+                "default": "500M+",
+                "output": {
+                    "avg_revenue": {"$avg": "$revenue"},
+                    "avg_rating": {"$avg": "$vote_average"},
+                    "movie_count": {"$sum": 1},
+                },
+            }
+        },
+        {"$sort": {"_id": 1}},
+    ]
+
+    # BEFORE index
+    start = time.time()
+    list(collection.aggregate(pipeline))
+    before_time = time.time() - start
+    print(f"\n--- Before & After Index Comparison ---")
+    print(f"Before index: {before_time:.4f} seconds")
+
+    # Create index on budget
+    collection.create_index("budget")
+    print("Index created on 'budget'")
+
+    # AFTER index
+    start = time.time()
+    list(collection.aggregate(pipeline))
+    after_time = time.time() - start
+    print(f"After index:  {after_time:.4f} seconds")
+    print(f"Improvement:  {before_time - after_time:.4f} seconds faster")
+
+    return {
+        "before": before_time,
+        "after": after_time,
+        "improvement": before_time - after_time
+    }
+
+
+# =========================================================
+# RUNTIME COMPARISON - 3 Comparable Queries
+# =========================================================
+
+def runtime_comparison(collection):
+
+    pipelines = {
+
+        "Budget vs Success": [
+            {"$match": {"budget": {"$gt": 0}, "revenue": {"$gt": 0}}},
+            {
+                "$bucket": {
+                    "groupBy": "$budget",
+                    "boundaries": [0, 1000000, 10000000, 50000000, 100000000, 500000000],
+                    "default": "500M+",
+                    "output": {
+                        "avg_revenue": {"$avg": "$revenue"},
+                        "movie_count": {"$sum": 1},
+                    },
+                }
+            },
+            {"$sort": {"_id": 1}},
+        ],
+
+        "Engagement vs Revenue by Genre": [
+            {
+                "$match": {
+                    "vote_count": {"$gt": 100},
+                    "revenue": {"$gt": 0},
+                    "genres": {"$exists": True, "$not": {"$size": 0}},
+                }
+            },
+            {"$unwind": "$genres"},
+            {
+                "$group": {
+                    "_id": "$genres",
+                    "avg_vote_count": {"$avg": "$vote_count"},
+                    "avg_revenue": {"$avg": "$revenue"},
+                    "movie_count": {"$sum": 1},
+                }
+            },
+            {"$sort": {"avg_revenue": -1}},
+        ],
+
+        "Film Industry Trends": [
+            {
+                "$match": {
+                    "release_date": {"$ne": None, "$regex": r"^\d{4}-\d{2}-\d{2}"}
+                }
+            },
+            {
+                "$addFields": {
+                    "year": {
+                        "$year": {
+                            "$dateFromString": {
+                                "dateString": "$release_date",
+                                "format": "%Y-%m-%d"
+                            }
+                        }
+                    }
+                }
+            },
+            {"$match": {"year": {"$ne": None, "$gt": 1800}}},
+            {
+                "$group": {
+                    "_id": "$year",
+                    "avg_budget": {"$avg": "$budget"},
+                    "avg_revenue": {"$avg": "$revenue"},
+                    "movie_count": {"$sum": 1},
+                }
+            },
+            {"$sort": {"_id": 1}},
+        ],
+    }
+
+    print("\n--- Runtime Comparison: 3 Queries ---")
+    results = {}
+
+    for name, pipeline in pipelines.items():
+        start = time.time()
+        list(collection.aggregate(pipeline))
+        elapsed = time.time() - start
+        results[name] = elapsed
+        print(f"{name}: {elapsed:.4f} seconds")
+
+    return results
+
+
 # -----------------------------
 # MAIN RUNNER
 # -----------------------------
 if __name__ == "__main__":
+
     # 1. Establish connection
     client, db = connect_to_mongodb()
 
@@ -281,7 +440,7 @@ if __name__ == "__main__":
     movies_collection = load_csv_to_mongodb(db, INPUT_FILE)
 
     print("\nExecuting pipelines and writing queries directly into MongoDB collections...")
-    
+
     # 3. Execute pipelines which generate new collections automatically via {"$out": ...}
     save_budget_vs_success(movies_collection)
     save_engagement_vs_revenue_by_genre(movies_collection)
@@ -290,4 +449,13 @@ if __name__ == "__main__":
     save_language_diversity_global_reach(movies_collection)
 
     print("\nAll queries saved successfully. You can now view them inside your MongoDB viewer (Compass/Shell)!")
+
+    # -----------------------------
+    # Performance Analysis
+    # -----------------------------
+
+    explain_budget_vs_success(movies_collection)
+    runtime_before_after_index(movies_collection)
+    runtime_comparison(movies_collection)
+
     client.close()

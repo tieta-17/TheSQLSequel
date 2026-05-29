@@ -1,3 +1,4 @@
+import time
 import pandas as pd
 import pymysql
 from sqlalchemy import create_engine, text
@@ -135,7 +136,7 @@ def create_tables(engine):
             );
         """))
 
-                # -----------------------------
+        # -----------------------------
         # CONTENT DESCRIPTION
         # -----------------------------
 
@@ -457,9 +458,11 @@ def get_film_industry_trends(engine):
 
     return pd.read_sql(query, con=engine)
 
-# -----------------------------
-# QUERY 5: Language Diversity & Global Reach
-# -----------------------------
+
+# =========================================================
+# QUERY 5
+# Language Diversity & Global Reach
+# =========================================================
 
 def get_language_diversity_global_reach(engine):
 
@@ -474,7 +477,6 @@ def get_language_diversity_global_reach(engine):
         FROM (
             SELECT
                 gi.movie_id,
-                -- Count comma-separated languages by counting commas + 1
                 (
                     LENGTH(pc.spoken_languages)
                     - LENGTH(REPLACE(pc.spoken_languages, ',', ''))
@@ -500,10 +502,184 @@ def get_language_diversity_global_reach(engine):
         AND language_count > 0
 
         GROUP BY language_count
-        ORDER BY language_count ASC; 
+        ORDER BY language_count ASC;
     """
 
     return pd.read_sql(query, con=engine)
+
+
+# =========================================================
+# EXPLAIN OUTPUT
+# MySQL EXPLAIN for Budget vs Success query
+# =========================================================
+
+def explain_budget_vs_success(engine):
+
+    query = """
+        EXPLAIN SELECT
+            CASE
+                WHEN fm.budget < 1000000    THEN '0-1M'
+                WHEN fm.budget < 10000000   THEN '1M-10M'
+                WHEN fm.budget < 50000000   THEN '10M-50M'
+                WHEN fm.budget < 100000000  THEN '50M-100M'
+                WHEN fm.budget < 500000000  THEN '100M-500M'
+                ELSE '500M+'
+            END AS budget_range,
+
+            AVG(fm.revenue)        AS avg_revenue,
+            AVG(pm.vote_average)   AS avg_rating,
+            AVG(pm.vote_count)     AS avg_votes,
+            COUNT(*)               AS movie_count
+
+        FROM financial_metrics fm
+
+        JOIN popularity_metrics pm
+            ON fm.movie_id = pm.movie_id
+
+        WHERE fm.budget > 0
+          AND fm.revenue > 0
+
+        GROUP BY budget_range
+
+        ORDER BY avg_revenue ASC;
+    """
+
+    df = pd.read_sql(query, con=engine)
+    print("\n--- EXPLAIN: Budget vs Success ---")
+    print(df.to_string())
+    return df
+
+
+# =========================================================
+# BEFORE & AFTER INDEX COMPARISON
+# =========================================================
+
+def runtime_before_after_index(engine):
+
+    query = """
+        SELECT
+            CASE
+                WHEN fm.budget < 1000000    THEN '0-1M'
+                WHEN fm.budget < 10000000   THEN '1M-10M'
+                WHEN fm.budget < 50000000   THEN '10M-50M'
+                WHEN fm.budget < 100000000  THEN '50M-100M'
+                WHEN fm.budget < 500000000  THEN '100M-500M'
+                ELSE '500M+'
+            END AS budget_range,
+
+            AVG(fm.revenue)      AS avg_revenue,
+            AVG(pm.vote_average) AS avg_rating,
+            COUNT(*)             AS movie_count
+
+        FROM financial_metrics fm
+
+        JOIN popularity_metrics pm
+            ON fm.movie_id = pm.movie_id
+
+        WHERE fm.budget > 0
+          AND fm.revenue > 0
+
+        GROUP BY budget_range
+        ORDER BY avg_revenue ASC;
+    """
+
+    # BEFORE index
+    start = time.time()
+    pd.read_sql(query, con=engine)
+    before_time = time.time() - start
+    print(f"\n--- Before & After Index Comparison ---")
+    print(f"Before index: {before_time:.4f} seconds")
+
+    # Create index on budget
+    with engine.connect() as conn:
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS idx_budget ON financial_metrics(budget);"
+        ))
+        conn.commit()
+    print("Index created on financial_metrics(budget)")
+
+    # AFTER index
+    start = time.time()
+    pd.read_sql(query, con=engine)
+    after_time = time.time() - start
+    print(f"After index:  {after_time:.4f} seconds")
+    print(f"Improvement:  {before_time - after_time:.4f} seconds faster")
+
+    return {
+        "before": before_time,
+        "after": after_time,
+        "improvement": before_time - after_time
+    }
+
+
+# =========================================================
+# RUNTIME COMPARISON - 3 Comparable Queries
+# =========================================================
+
+def runtime_comparison(engine):
+
+    queries = {
+
+        "Budget vs Success": """
+            SELECT
+                CASE
+                    WHEN fm.budget < 1000000   THEN '0-1M'
+                    WHEN fm.budget < 10000000  THEN '1M-10M'
+                    WHEN fm.budget < 50000000  THEN '10M-50M'
+                    WHEN fm.budget < 100000000 THEN '50M-100M'
+                    ELSE '100M+'
+                END AS budget_range,
+                AVG(fm.revenue) AS avg_revenue,
+                COUNT(*) AS movie_count
+            FROM financial_metrics fm
+            JOIN popularity_metrics pm ON fm.movie_id = pm.movie_id
+            WHERE fm.budget > 0 AND fm.revenue > 0
+            GROUP BY budget_range;
+        """,
+
+        "Engagement vs Revenue": """
+            SELECT
+                pc.genres,
+                AVG(pm.vote_count) AS avg_vote_count,
+                AVG(fm.revenue)    AS avg_revenue,
+                COUNT(*)           AS movie_count
+            FROM popularity_metrics pm
+            JOIN financial_metrics fm ON pm.movie_id = fm.movie_id
+            JOIN production_classification pc ON pc.movie_id = pm.movie_id
+            WHERE pm.vote_count > 100
+              AND fm.revenue > 0
+              AND pc.genres IS NOT NULL
+            GROUP BY pc.genres
+            ORDER BY avg_revenue DESC;
+        """,
+
+        "Film Industry Trends": """
+            SELECT
+                YEAR(gi.release_date) AS year,
+                AVG(fm.budget)        AS avg_budget,
+                AVG(fm.revenue)       AS avg_revenue,
+                COUNT(*)              AS movie_count
+            FROM general_information gi
+            JOIN financial_metrics fm ON gi.movie_id = fm.movie_id
+            JOIN popularity_metrics pm ON gi.movie_id = pm.movie_id
+            WHERE gi.release_date IS NOT NULL
+            GROUP BY year
+            ORDER BY year ASC;
+        """
+    }
+
+    print("\n--- Runtime Comparison: 3 Queries ---")
+    results = {}
+
+    for name, query in queries.items():
+        start = time.time()
+        pd.read_sql(query, con=engine)
+        elapsed = time.time() - start
+        results[name] = elapsed
+        print(f"{name}: {elapsed:.4f} seconds")
+
+    return results
+
 
 # =========================================================
 # MAIN
@@ -523,19 +699,37 @@ def main():
 
     insert_data(df, engine)
 
-    # Example query usage
+    # -----------------------------
+    # Run Queries
+    # -----------------------------
 
     df1 = get_budget_vs_success(engine)
+    print("\n--- Query 1: Budget vs Success ---")
     print(df1.head())
 
     df2 = get_engagement_vs_revenue(engine)
+    print("\n--- Query 2: Engagement vs Revenue ---")
     print(df2.head())
 
     df3 = get_popular_genres_by_country(engine)
+    print("\n--- Query 3: Popular Genres by Country ---")
     print(df3.head())
 
     df4 = get_film_industry_trends(engine)
+    print("\n--- Query 4: Film Industry Trends ---")
     print(df4.head())
+
+    df5 = get_language_diversity_global_reach(engine)
+    print("\n--- Query 5: Language Diversity & Global Reach ---")
+    print(df5.head())
+
+    # -----------------------------
+    # Performance Analysis
+    # -----------------------------
+
+    explain_budget_vs_success(engine)
+    runtime_before_after_index(engine)
+    runtime_comparison(engine)
 
 
 if __name__ == "__main__":
