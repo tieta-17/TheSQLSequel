@@ -3,8 +3,10 @@ Project 2: Databases and Dashboards
 
 Source: https://www.kaggle.com/datasets/asaniczka/tmdb-movies-dataset-2023-930k-movies/data?select=TMDB_movie_dataset_v11.csv 
 
-Necessary packages to run the repo:
-'pip install pandas plotly pymongo streamlit pymysql sqlalchemy'
+Ensure you have python installed to run the repo
+
+Necessary packages install:
+`pip install pandas plotly pymongo streamlit pymysql sqlalchemy`
 
 This dataset is usable for this project as it has over the required 5,000 entries, 4+ tables or logical entities, numerical/categorical/time entries/fields, as well as relationships between entries. 
 
