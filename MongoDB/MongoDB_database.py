@@ -267,25 +267,30 @@ def save_language_diversity_global_reach(collection, output_collection_name="que
 
 def explain_budget_vs_success(collection):
 
-    pipeline = [
-        {"$match": {"budget": {"$gt": 0}, "revenue": {"$gt": 0}}},
-        {
-            "$bucket": {
-                "groupBy": "$budget",
-                "boundaries": [0, 1000000, 10000000, 50000000, 100000000, 500000000],
-                "default": "500M+",
-                "output": {
-                    "avg_revenue": {"$avg": "$revenue"},
-                    "avg_rating": {"$avg": "$vote_average"},
-                    "avg_votes": {"$avg": "$vote_count"},
-                    "movie_count": {"$sum": 1},
-                },
-            }
-        },
-        {"$sort": {"_id": 1}},
-    ]
+    command = {
+        "aggregate": collection.name,
+        "pipeline": [
+            {"$match": {"budget": {"$gt": 0}, "revenue": {"$gt": 0}}},
+            {
+                "$bucket": {
+                    "groupBy": "$budget",
+                    "boundaries": [0, 1000000, 10000000, 50000000, 100000000, 500000000],
+                    "default": "500M+",
+                    "output": {
+                        "avg_revenue": {"$avg": "$revenue"},
+                        "avg_rating": {"$avg": "$vote_average"},
+                        "avg_votes": {"$avg": "$vote_count"},
+                        "movie_count": {"$sum": 1},
+                    },
+                }
+            },
+            {"$sort": {"_id": 1}},
+        ],
+        "explain": True,
+        "cursor": {}
+    }
 
-    explanation = collection.aggregate(pipeline, explain=True)
+    explanation = collection.database.command(command)
 
     print("\n--- EXPLAIN: Budget vs Success ---")
     print(explanation)
